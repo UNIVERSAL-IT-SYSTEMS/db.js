@@ -7,7 +7,7 @@
             readonly: 'readonly',
             readwrite: 'readwrite'
         };
-        
+
     var hasOwn = Object.prototype.hasOwnProperty;
 
     if ( !indexedDB ) {
@@ -79,40 +79,40 @@
 
             var transaction = db.transaction( table , transactionModes.readwrite ),
                 store = transaction.objectStore( table );
-            
-            return new Promise(function(resolve, reject){
-              records.forEach( function ( record ) {
-                  var req;
-                  if ( record.item && record.key ) {
-                      var key = record.key;
-                      record = record.item;
-                      req = store.add( record , key );
-                  } else {
-                      req = store.add( record );
-                  }
 
-                  req.onsuccess = function ( e ) {
-                      var target = e.target;
-                      var keyPath = target.source.keyPath;
-                      if ( keyPath === null ) {
-                          keyPath = '__id__';
-                      }
-                      Object.defineProperty( record , keyPath , {
-                          value: target.result,
-                          enumerable: true
-                      });
-                  };
-              } );
-              
-              transaction.oncomplete = function () {
-                  resolve( records , that );
-              };
-              transaction.onerror = function ( e ) {
-                  reject( records , e );
-              };
-              transaction.onabort = function ( e ) {
-                  reject( records , e );
-              };
+            return new Promise(function(resolve, reject){
+                records.forEach( function ( record ) {
+                    var req;
+                    if ( record.item && record.key ) {
+                        var key = record.key;
+                        record = record.item;
+                        req = store.add( record , key );
+                    } else {
+                        req = store.add( record );
+                    }
+
+                    req.onsuccess = function ( e ) {
+                        var target = e.target;
+                        var keyPath = target.source.keyPath;
+                        if ( keyPath === null ) {
+                            keyPath = '__id__';
+                        }
+                        Object.defineProperty( record , keyPath , {
+                            value: target.result,
+                            enumerable: true
+                        });
+                    };
+                } );
+
+                transaction.oncomplete = function () {
+                    resolve( records , that );
+                };
+                transaction.onerror = function ( e ) {
+                    reject({ 'records': records , 'reason': e });
+                };
+                transaction.onabort = function ( e ) {
+                    reject({ 'records': records , 'reason': e });
+                };
 
             });
         };
@@ -132,50 +132,50 @@
                 keyPath = store.keyPath;
 
             return new Promise(function(resolve, reject){
-              records.forEach( function ( record ) {
-                  var req;
-                  var count;
-                  if ( record.item && record.key ) {
-                      var key = record.key;
-                      record = record.item;
-                      req = store.put( record , key );
-                  } else {
-                      req = store.put( record );
-                  }
+                records.forEach( function ( record ) {
+                    var req;
+                    var count;
+                    if ( record.item && record.key ) {
+                        var key = record.key;
+                        record = record.item;
+                        req = store.put( record , key );
+                    } else {
+                        req = store.put( record );
+                    }
 
-                  req.onsuccess = function ( e ) {
-                      // deferred.notify(); es6 promise can't notify
-                  };
-              } );
+                    req.onsuccess = function ( e ) {
+                        // deferred.notify(); es6 promise can't notify
+                    };
+                } );
 
-              transaction.oncomplete = function () {
-                  resolve( records , that );
-              };
-              transaction.onerror = function ( e ) {
-                  reject( records , e );
-              };
-              transaction.onabort = function ( e ) {
-                  reject( records , e );
-              };
+                transaction.oncomplete = function () {
+                    resolve( records , that );
+                };
+                transaction.onerror = function ( e ) {
+                    reject({ 'records': records , 'reason': e });
+                };
+                transaction.onabort = function ( e ) {
+                    reject({ 'records': records , 'reason': e });
+                };
             });
-            
+
         };
-        
+
         this.remove = function ( table , key ) {
             if ( closed ) {
                 throw 'Database has been closed';
             }
             var transaction = db.transaction( table , transactionModes.readwrite ),
                 store = transaction.objectStore( table );
-            
+
             return new Promise(function(resolve, reject){
-              var req = store.delete( key );
-              transaction.oncomplete = function ( ) {
-                  resolve( key );
-              };
-              transaction.onerror = function ( e ) {
-                  reject( e );
-              };
+                var req = store.delete( key );
+                transaction.oncomplete = function ( ) {
+                    resolve( key );
+                };
+                transaction.onerror = function ( e ) {
+                    reject({'reason': e });
+                };
             });
         };
 
@@ -188,15 +188,15 @@
 
             var req = store.clear();
             return new Promise(function(resolve, reject){
-              transaction.oncomplete = function ( ) {
-                  resolve( );
-              };
-              transaction.onerror = function ( e ) {
-                  reject( e );
-              };
+                transaction.oncomplete = function ( ) {
+                    resolve( );
+                };
+                transaction.onerror = function ( e ) {
+                    reject({ 'reason': e });
+                };
             });
         };
-        
+
         this.close = function ( ) {
             if ( closed ) {
                 throw 'Database has been closed';
@@ -215,12 +215,12 @@
 
             var req = store.get( id );
             return new Promise(function(resolve, reject){
-              req.onsuccess = function ( e ) {
-                  resolve( e.target.result );
-              };
-              transaction.onerror = function ( e ) {
-                  reject( e );
-              };
+                req.onsuccess = function ( e ) {
+                    resolve( e.target.result );
+                };
+                transaction.onerror = function ( e ) {
+                    reject({ 'reason': e });
+                };
             });
         };
 
@@ -229,6 +229,21 @@
                 throw 'Database has been closed';
             }
             return new IndexQuery( table , db , index );
+        };
+
+        this.destroy = function() {
+            return new Promise(function(resolve, reject) {
+                var request = indexedDB.deleteDatabase( name );
+                request.onsuccess = function () { resolve(); };
+                request.onerror = function ( e ) { reject({ 'reason': e }); };
+                request.onblocked = function ( e ) {
+                    if(e instanceof IDBVersionChangeEvent && e.newVersion == null) {
+                        resolve();
+                    } else {
+                        reject({ 'reason': e });
+                    }
+                };
+            });
         };
 
         for ( var i = 0 , il = db.objectStoreNames.length ; i < il ; i++ ) {
@@ -286,9 +301,9 @@
                 if ( typeof cursor === typeof 0 ) {
                     results = cursor;
                 } else if ( cursor ) {
-                	if ( limitRange !== null && limitRange[0] > counter) {
-                    	counter = limitRange[0];
-                    	cursor.advance(limitRange[0]);
+                    if ( limitRange !== null && limitRange[0] > counter) {
+                        counter = limitRange[0];
+                        cursor.advance(limitRange[0]);
                     } else if ( limitRange !== null && counter >= (limitRange[0] + limitRange[1]) ) {
                         //out of limit range... skip
                     } else {
@@ -320,15 +335,15 @@
             };
 
             return new Promise(function(resolve, reject){
-              transaction.oncomplete = function () {
-                  resolve( results );
-              };
-              transaction.onerror = function ( e ) {
-                  reject( e );
-              };
-              transaction.onabort = function ( e ) {
-                  reject( e );
-              };
+                transaction.oncomplete = function () {
+                    resolve( results );
+                };
+                transaction.onerror = function ( e ) {
+                    reject({ 'reason': e });
+                };
+                transaction.onabort = function ( e ) {
+                    reject({ 'reason': e });
+                };
             });
         };
 
@@ -445,7 +460,7 @@
                 map: map
             };
         };
-        
+
         'only bound upperBound lowerBound'.split(' ').forEach(function (name) {
             that[name] = function () {
                 return new Query( name , arguments );
@@ -461,12 +476,12 @@
             return this.filter();
         };
     };
-    
+
     var createSchema = function ( e , schema , db ) {
         if ( typeof schema === 'function' ) {
             schema = schema();
         }
-        
+
         for ( var tableName in schema ) {
             var table = schema[ tableName ];
             var store;
@@ -480,13 +495,13 @@
                 if (store.indexNames.contains(indexKey)) {
                     continue;
                 }
-                
+
                 var index = table.indexes[ indexKey ];
                 store.createIndex( indexKey , index.key || indexKey , Object.keys(index).length ? index : { unique: false } );
             }
         }
     };
-    
+
     var open = function ( e , server , version , schema ) {
         var db = e.target.result;
         var s = new Server( db , server );
@@ -505,28 +520,28 @@
             var request;
 
             return new Promise(function(resolve, reject){
-              if ( dbCache[ options.server ] ) {
-                  open( {
-                      target: {
-                          result: dbCache[ options.server ]
-                      }
-                  } , options.server , options.version , options.schema )
-                  .then(resolve, reject)
-              } else {
-                  request = indexedDB.open( options.server , options.version );
-                              
-                  request.onsuccess = function ( e ) {
-                      open( e , options.server , options.version , options.schema )
-                          .then(resolve, reject)
-                  };
-              
-                  request.onupgradeneeded = function ( e ) {
-                      createSchema( e , options.schema , e.target.result );
-                  };
-                  request.onerror = function ( e ) {
-                      reject( e );
-                  };
-              }
+                if ( dbCache[ options.server ] ) {
+                    open( {
+                        target: {
+                            result: dbCache[ options.server ]
+                        }
+                    } , options.server , options.version , options.schema )
+                        .then(resolve, reject)
+                } else {
+                    request = indexedDB.open( options.server , options.version );
+
+                    request.onsuccess = function ( e ) {
+                        open( e , options.server , options.version , options.schema )
+                            .then(resolve, reject)
+                    };
+
+                    request.onupgradeneeded = function ( e ) {
+                        createSchema( e , options.schema , e.target.result );
+                    };
+                    request.onerror = function ( e ) {
+                        reject({ 'reason': e });
+                    };
+                }
             });
         }
     };
